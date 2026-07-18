@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell, GoogleIcon, inputClass, PasswordInput } from './Signup.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { baseURL } from '../api/client.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = '/api/auth/google';
+    window.location.href = `${baseURL}/auth/google`;
   };
 
   return (
