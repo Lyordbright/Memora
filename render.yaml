@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: memora-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CLIENT_URL
+        sync: false # your Vercel frontend URL, e.g. https://memora.vercel.app
+      - key: MONGODB_URI
+        sync: false # your MongoDB Atlas connection string
+      - key: JWT_SECRET
+        sync: false # any long random string
+      - key: JWT_EXPIRES_IN
+        value: 30d
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false # e.g. https://memora-api.onrender.com/api/auth/google/callback
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
