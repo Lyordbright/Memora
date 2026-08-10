@@ -1,6 +1,7 @@
+import React from 'react';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus, Sparkles, Shuffle } from 'lucide-react';
 import AppShell from '../components/AppShell.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import * as decksApi from '../api/decks.js';
@@ -130,15 +131,34 @@ export default function Dashboard() {
         )}
         {createError && <p className="text-red-400 text-xs mb-6">{createError}</p>}
 
-        {totalDue > 0 && (
+        {/* Study entry points: due-card review (time-sensitive) and practice
+            mode (available any time, as many times a day as you want). */}
+        <div className="grid sm:grid-cols-2 gap-3 mb-8">
+          {totalDue > 0 ? (
+            <Link
+              to="/study"
+              className="rounded-xl bg-gradient-to-r from-blue/20 to-spark/10 border border-blue-bright/20 p-5 hover:border-blue-bright/40 transition-colors"
+            >
+              <p className="font-display font-semibold">Study due cards</p>
+              <p className="text-mist/55 text-sm mt-0.5">{totalDue} cards ready across all your decks</p>
+            </Link>
+          ) : (
+            <div className="rounded-xl bg-surface border border-white/5 p-5">
+              <p className="font-display font-semibold text-mist/60">All caught up</p>
+              <p className="text-mist/40 text-sm mt-0.5">Nothing due right now</p>
+            </div>
+          )}
           <Link
-            to="/study"
-            className="block mb-8 rounded-xl bg-gradient-to-r from-blue/20 to-spark/10 border border-blue-bright/20 p-5 hover:border-blue-bright/40 transition-colors"
+            to="/study?mode=cram"
+            className="rounded-xl bg-surface border border-spark/20 p-5 hover:border-spark/40 transition-colors"
           >
-            <p className="font-display font-semibold">Study due cards</p>
-            <p className="text-mist/55 text-sm mt-0.5">{totalDue} cards ready across all your decks</p>
+            <p className="font-display font-semibold flex items-center gap-2">
+              <Shuffle size={15} className="text-spark" />
+              Practice mode
+            </p>
+            <p className="text-mist/55 text-sm mt-0.5">Review any card, any time — no daily limit</p>
           </Link>
-        )}
+        </div>
 
         {allTags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
@@ -171,13 +191,14 @@ export default function Dashboard() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDecks.map((deck) => (
-              <Link
+              <div
                 key={deck._id}
-                to={`/decks/${deck._id}`}
-                className="rounded-xl bg-surface border border-white/5 p-5 hover:border-blue-bright/30 transition-colors"
+                className="rounded-xl bg-surface border border-white/5 p-5 hover:border-blue-bright/30 transition-colors group"
               >
-                <h3 className="font-display font-semibold mb-1">{deck.title}</h3>
-                <p className="text-mist/40 text-xs mb-4">{deck.cards.length} cards</p>
+                <Link to={`/decks/${deck._id}`} className="block mb-4">
+                  <h3 className="font-display font-semibold mb-1">{deck.title}</h3>
+                  <p className="text-mist/40 text-xs">{deck.cards.length} cards</p>
+                </Link>
                 <div className="flex items-center justify-between">
                   <div className="flex gap-1.5 flex-wrap">
                     {deck.tags.map((t) => (
@@ -186,13 +207,20 @@ export default function Dashboard() {
                       </span>
                     ))}
                   </div>
-                  {dueByDeck[deck._id] > 0 && (
-                    <span className="text-xs font-semibold text-blue-bright shrink-0 ml-2">
-                      {dueByDeck[deck._id]} due
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {dueByDeck[deck._id] > 0 && (
+                      <span className="text-xs font-semibold text-blue-bright">{dueByDeck[deck._id]} due</span>
+                    )}
+                    <Link
+                      to={`/study/${deck._id}?mode=cram`}
+                      title="Practice this deck anytime"
+                      className="text-mist/30 hover:text-spark transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Shuffle size={14} />
+                    </Link>
+                  </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

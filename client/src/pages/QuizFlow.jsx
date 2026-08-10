@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Check, X } from 'lucide-react';

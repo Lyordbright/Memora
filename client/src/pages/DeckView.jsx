@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Plus, Play, Tag as TagIcon, Trash2, Pencil, Check, X, Shuffle, ClipboardList } from 'lucide-react';

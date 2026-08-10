@@ -1,13 +1,45 @@
+import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Layers, Sparkles, History as HistoryIcon, Flame, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { Layers, Sparkles, History as HistoryIcon, Flame, LogOut, Settings as SettingsIcon, BarChart3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const NAV = [
   { to: '/dashboard', label: 'Decks', icon: Layers },
   { to: '/ai-teacher', label: 'AI Teacher', icon: Sparkles },
+  { to: '/stats', label: 'Stats', icon: BarChart3 },
   { to: '/history', label: 'History', icon: HistoryIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
+
+function initials(name = '') {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('');
+}
+
+function Avatar({ user, size = 32 }) {
+  if (user?.avatarUrl) {
+    return (
+      <img
+        src={user.avatarUrl}
+        alt=""
+        style={{ width: size, height: size }}
+        className="rounded-full object-cover shrink-0"
+      />
+    );
+  }
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className="rounded-full bg-brand-gradient flex items-center justify-center text-white font-display font-semibold text-xs shrink-0"
+    >
+      {initials(user?.name) || '?'}
+    </div>
+  );
+}
 
 export default function AppShell({ children }) {
   const location = useLocation();
@@ -33,6 +65,9 @@ export default function AppShell({ children }) {
             <Flame size={14} className="text-spark" />
             {streak}
           </div>
+          <Link to="/settings">
+            <Avatar user={user} size={26} />
+          </Link>
           <button onClick={handleLogout} className="text-mist/40 hover:text-mist/70">
             <LogOut size={15} />
           </button>
@@ -69,10 +104,19 @@ export default function AppShell({ children }) {
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-surface border border-white/5 text-sm">
-            <Flame size={16} className="text-spark" />
-            <span className="text-mist/70">{streak} day streak</span>
-          </div>
+          <Link
+            to="/settings"
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-surface border border-white/5 hover:border-blue-bright/30 transition-colors"
+          >
+            <Avatar user={user} size={30} />
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{user?.name || 'Account'}</p>
+              <div className="flex items-center gap-1 text-xs text-mist/50">
+                <Flame size={11} className="text-spark" />
+                {streak} day streak
+              </div>
+            </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-mist/40 hover:text-mist/70 transition-colors"
@@ -85,7 +129,7 @@ export default function AppShell({ children }) {
 
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 h-16 border-t border-white/5 bg-ink z-20 flex items-center">
-        {NAV.map((item) => {
+        {NAV.filter((n) => n.to !== '/settings').map((item) => {
           const active = location.pathname.startsWith(item.to);
           return (
             <Link

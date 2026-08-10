@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { useLocation, useNavigate, Link, Navigate } from 'react-router-dom';
 import { Sparkles, Save, Check } from 'lucide-react';
