@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
     googleId: {
       type: String,
       unique: true,
-      sparse: true, // allows multiple docs with no googleId
+      sparse: true, 
     },
     authProvider: {
       type: String,

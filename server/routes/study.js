@@ -1,5 +1,6 @@
 const express = require('express');
 const Deck = require('../models/Deck');
+const ReviewLog = require('../models/ReviewLog');
 const requireAuth = require('../middleware/requireAuth');
 const { applyReview } = require('../utils/srs');
 
@@ -10,6 +11,10 @@ router.use(requireAuth);
  * Builds today's study queue: all due review/learning cards (no cap, since
  * they're time-sensitive) plus new cards up to the user's daily limit.
  * Optionally scoped to a single deck via req.query.deckId.
+ *
+ * Each entry includes the card's current srs state (interval, repetition,
+ * easeFactor) so the frontend can compute an accurate "you'll see this again
+ * in N days" preview per rating button, instead of a generic static guess.
  */
 async function buildQueue(userId, dailyLimit, deckId) {
   const filter = { userId };
@@ -30,6 +35,11 @@ async function buildQueue(userId, dailyLimit, deckId) {
         front: card.front,
         back: card.back,
         srsStatus: card.srs.status,
+        srs: {
+          interval: card.srs.interval,
+          repetition: card.srs.repetition,
+          easeFactor: card.srs.easeFactor,
+        },
       };
       if (card.srs.status === 'new') {
         fresh.push(entry);
@@ -42,23 +52,6 @@ async function buildQueue(userId, dailyLimit, deckId) {
   // Review cards first (time-sensitive), then new cards up to the daily cap.
   return [...due, ...fresh.slice(0, dailyLimit)];
 }
-
-// GET /api/study/all/:deckId — every card in a deck, ignoring due dates (cram mode)
-router.get('/all/:deckId', async (req, res) => {
-  const deck = await Deck.findOne({ _id: req.params.deckId, userId: req.user._id });
-  if (!deck) return res.status(404).json({ error: 'Deck not found' });
-
-  const queue = deck.cards.map((card) => ({
-    deckId: deck._id,
-    deckTitle: deck.title,
-    cardId: card._id,
-    front: card.front,
-    back: card.back,
-    srsStatus: card.srs.status,
-  }));
-
-  res.json({ queue });
-});
 
 // GET /api/study/due — today's full queue across all decks
 router.get('/due', async (req, res) => {
@@ -80,6 +73,52 @@ router.get('/due/:deckId', async (req, res) => {
   });
 });
 
+// GET /api/study/all/:deckId — every card in one deck, ignoring schedule (practice/cram mode)
+router.get('/all/:deckId', async (req, res) => {
+  const deck = await Deck.findOne({ _id: req.params.deckId, userId: req.user._id });
+  if (!deck) return res.status(404).json({ error: 'Deck not found' });
+
+  const queue = deck.cards.map((card) => ({
+    deckId: deck._id,
+    deckTitle: deck.title,
+    cardId: card._id,
+    front: card.front,
+    back: card.back,
+    srsStatus: card.srs.status,
+    srs: {
+      interval: card.srs.interval,
+      repetition: card.srs.repetition,
+      easeFactor: card.srs.easeFactor,
+    },
+  }));
+
+  res.json({ queue });
+});
+
+// GET /api/study/all — every card across every deck, ignoring schedule
+// (practice mode when nothing is due but the user wants to keep studying)
+router.get('/all', async (req, res) => {
+  const decks = await Deck.find({ userId: req.user._id });
+
+  const queue = decks.flatMap((deck) =>
+    deck.cards.map((card) => ({
+      deckId: deck._id,
+      deckTitle: deck.title,
+      cardId: card._id,
+      front: card.front,
+      back: card.back,
+      srsStatus: card.srs.status,
+      srs: {
+        interval: card.srs.interval,
+        repetition: card.srs.repetition,
+        easeFactor: card.srs.easeFactor,
+      },
+    }))
+  );
+
+  res.json({ queue });
+});
+
 // POST /api/study/review — submit a rating for one card, returns updated schedule
 router.post('/review', async (req, res) => {
   const { deckId, cardId, rating } = req.body;
@@ -95,6 +134,15 @@ router.post('/review', async (req, res) => {
 
   card.srs = applyReview(card.srs, rating);
   await deck.save();
+
+  // Log this review for the stats dashboard (streak calendar, rating
+  // breakdown, activity over time). Non-fatal if it fails — the review
+  // itself already succeeded, so we don't want to error the whole request.
+  try {
+    await ReviewLog.create({ userId: req.user._id, deckId, cardId, rating });
+  } catch (err) {
+    console.error('Failed to write review log:', err);
+  }
 
   // Update the user's study streak.
   const today = new Date().toDateString();

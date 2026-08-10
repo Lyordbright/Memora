@@ -14,8 +14,6 @@ passport.use(
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error('No email returned from Google'), null);
 
-        // Match an existing Google account first, then fall back to
-        // linking by email in case they'd previously signed up with a password.
         let user = await User.findOne({ googleId: profile.id });
 
         if (!user) {
@@ -46,8 +44,6 @@ passport.use(
   )
 );
 
-// We use JWTs for session state, not passport sessions, but passport
-// still requires these to be defined when session support is initialized.
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {

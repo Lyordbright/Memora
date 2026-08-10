@@ -16,6 +16,9 @@ const COOKIE_OPTIONS = {
   maxAge: 30 * 24 * 60 * 60 * 1000, 
 };
 
+
+const MAX_AVATAR_LENGTH = 400 * 1024; 
+
 function sendAuthResponse(res, user, statusCode = 200) {
   const token = signToken(user);
   res.cookie('token', token, COOKIE_OPTIONS);
@@ -61,7 +64,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -86,32 +89,48 @@ router.post('/login', async (req, res) => {
   }
 });
 
-
+// POST /api/auth/logout
 router.post('/logout', (req, res) => {
   res.clearCookie('token', COOKIE_OPTIONS);
   res.json({ success: true });
 });
 
-
+// GET /api/auth/me
 router.get('/me', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
-
+// PATCH /api/auth/me — update profile settings (daily new-card limit, avatar)
 router.patch('/me', requireAuth, async (req, res) => {
-  const { dailyNewCardLimit } = req.body;
+  const { dailyNewCardLimit, avatarUrl } = req.body;
+
   if (dailyNewCardLimit !== undefined) {
     const limit = Number(dailyNewCardLimit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
       return res.status(400).json({ error: 'Daily new-card limit must be a whole number between 1 and 200' });
     }
     req.user.dailyNewCardLimit = limit;
-    await req.user.save();
   }
+
+  if (avatarUrl !== undefined) {
+    if (avatarUrl === null || avatarUrl === '') {
+      req.user.avatarUrl = undefined; 
+    } else {
+      if (typeof avatarUrl !== 'string' || !avatarUrl.startsWith('data:image/')) {
+        return res.status(400).json({ error: 'Avatar must be a valid image' });
+      }
+      if (avatarUrl.length > MAX_AVATAR_LENGTH) {
+        return res.status(400).json({ error: 'Avatar image is too large' });
+      }
+      req.user.avatarUrl = avatarUrl;
+    }
+  }
+
+  await req.user.save();
   res.json({ user: req.user });
 });
 
-
+// POST /api/auth/change-password — local accounts only
 router.post('/change-password', requireAuth, async (req, res) => {
   if (req.user.authProvider !== 'local') {
     return res.status(400).json({ error: 'Your account uses Google sign-in, so there is no password to change' });
@@ -135,9 +154,13 @@ router.post('/change-password', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-
+// GET /api/auth/google — kicks off the OAuth consent flow
 router.get(
   '/google',
+  (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  },
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,
@@ -145,7 +168,7 @@ router.get(
   })
 );
 
-
+// GET /api/auth/google/callback — Google redirects here after consent
 router.get(
   '/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/login' }),
