@@ -1,6 +1,7 @@
 import React from 'react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { baseURL } from '../api/client.js';
 import { Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -37,7 +38,7 @@ function AuthShell({ children, title, subtitle }) {
 const inputClass =
   'w-full bg-ink border border-white/10 rounded-lg px-4 py-2.5 text-sm text-mist placeholder:text-mist/30 focus:border-blue-bright/50 outline-none transition-colors';
 
-// Shared password input with a show/hide toggle, used on both Signup and Login.
+
 function PasswordInput({ value, onChange, placeholder = 'Password', minLength }) {
   const [visible, setVisible] = useState(false);
 
@@ -87,7 +88,7 @@ export default function Signup() {
   };
 
   const handleGoogleSignup = () => {
-    window.location.href = '/api/auth/google';
+     window.location.href = `${baseURL}/auth/google`
   };
 
   return (
