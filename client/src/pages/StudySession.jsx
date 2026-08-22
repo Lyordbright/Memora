@@ -1,8 +1,8 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Shuffle, HelpCircle } from 'lucide-react';
+import { Shuffle, HelpCircle, Timer, LogOut } from 'lucide-react';
 import AppShell from '../components/AppShell.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import * as studyApi from '../api/study.js';
@@ -16,8 +16,11 @@ const RATING_META = {
   easy: { label: 'Easy', className: 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25' },
 };
 
+const CARD_TIME_LIMIT = 10; 
+
 export default function StudySession() {
   const { deckId } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isCram = searchParams.get('mode') === 'cram';
 
@@ -29,6 +32,13 @@ export default function StudySession() {
   const [rateError, setRateError] = useState('');
   const [rating, setRating] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  // Pace choice, asked once before the session starts.
+  const [started, setStarted] = useState(false);
+  const [timed, setTimed] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(CARD_TIME_LIMIT);
+  const timerRef = useRef(null);
 
   const load = () => {
     setLoading(true);
@@ -46,7 +56,26 @@ export default function StudySession() {
   const done = index >= queue.length;
   const preview = card ? previewIntervals(card.srs) : null;
 
+  // Per-card countdown before the answer is revealed, only in timed mode.
+  useEffect(() => {
+    if (!timed || !started || done || flipped) return;
+    setSecondsLeft(CARD_TIME_LIMIT);
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timerRef.current);
+          setFlipped(true); // reveal the answer automatically when time runs out
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, timed, started, done, flipped]);
+
   const rate = async (key) => {
+    clearInterval(timerRef.current);
     setRating(true);
     setRateError('');
     try {
@@ -54,12 +83,13 @@ export default function StudySession() {
       setFlipped(false);
       setIndex((i) => i + 1);
     } catch (err) {
-      // Keep the card on screen so the rating isn't silently lost.
       setRateError(getErrorMessage(err, "Couldn't save that — try again."));
     } finally {
       setRating(false);
     }
   };
+
+  const cancelDestination = deckId ? `/decks/${deckId}` : '/dashboard';
 
   if (loading) {
     return (
@@ -81,26 +111,77 @@ export default function StudySession() {
     );
   }
 
+  // Pre-session pace choice — skip straight through if there's nothing to study.
+  if (!started && queue.length > 0) {
+    return (
+      <AppShell>
+        <div className="max-w-lg mx-auto px-6 sm:px-8 py-14 text-center">
+          <h2 className="font-display text-2xl font-bold mb-2">Ready to study?</h2>
+          <p className="text-mist/50 text-sm mb-8">{queue.length} cards in this session</p>
+          <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
+            <button
+              onClick={() => {
+                setTimed(false);
+                setStarted(true);
+              }}
+              className="py-3.5 rounded-xl text-sm font-semibold bg-surface border border-white/10 hover:border-blue-bright/40 transition-colors"
+            >
+              Untimed
+            </button>
+            <button
+              onClick={() => {
+                setTimed(true);
+                setStarted(true);
+              }}
+              className="flex items-center justify-center gap-1.5 py-3.5 rounded-xl text-sm font-semibold bg-surface border border-white/10 hover:border-blue-bright/40 transition-colors"
+            >
+              <Timer size={14} />
+              Timed
+            </button>
+          </div>
+          <p className="text-mist/30 text-xs mt-4">Timed gives you {CARD_TIME_LIMIT}s per card before revealing the answer.</p>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="max-w-lg mx-auto px-6 sm:px-8 py-10">
         <div className="flex items-center justify-between mb-4">
-          {isCram ? (
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-spark bg-spark/10 border border-spark/20 rounded-full px-3 py-1">
-              Practice mode — reviewing every card
-            </div>
-          ) : (
-            <span />
-          )}
-          {!isCram && (
-            <Link
-              to={deckId ? `/study/${deckId}?mode=cram` : '/study?mode=cram'}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-mist/50 hover:text-mist/80 transition-colors"
-            >
-              <Shuffle size={12} />
-              Practice more
-            </Link>
-          )}
+          <div className="flex items-center gap-2">
+            {isCram && (
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-spark bg-spark/10 border border-spark/20 rounded-full px-3 py-1">
+                Practice mode
+              </div>
+            )}
+            {timed && !done && !flipped && (
+              <span className={`flex items-center gap-1 text-xs font-mono ${secondsLeft <= 5 ? 'text-red-400' : 'text-mist/50'}`}>
+                <Timer size={12} />
+                {secondsLeft}s
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {!isCram && !done && (
+              <Link
+                to={deckId ? `/study/${deckId}?mode=cram` : '/study?mode=cram'}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-mist/50 hover:text-mist/80 transition-colors"
+              >
+                <Shuffle size={12} />
+                Practice more
+              </Link>
+            )}
+            {!done && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="flex items-center gap-1 text-xs text-mist/40 hover:text-red-400 transition-colors"
+              >
+                <LogOut size={12} />
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="h-1 bg-white/5 rounded-full mb-10 overflow-hidden">
@@ -136,7 +217,10 @@ export default function StudySession() {
                 style={{ transformStyle: 'preserve-3d' }}
                 animate={{ rotateY: flipped ? 180 : 0 }}
                 transition={{ duration: 0.5 }}
-                onClick={() => setFlipped((f) => !f)}
+                onClick={() => {
+                  clearInterval(timerRef.current);
+                  setFlipped((f) => !f);
+                }}
               >
                 <div
                   className="absolute inset-0 rounded-2xl bg-surface border border-white/10 flex items-center justify-center p-8 text-center"
@@ -194,6 +278,29 @@ export default function StudySession() {
           </>
         )}
       </div>
+
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-surface border border-white/10 rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-display font-semibold text-lg mb-2">End this session?</h3>
+            <p className="text-mist/55 text-sm mb-6">Cards you've already rated are saved — only the rest of this session is skipped.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 bg-white/5 text-mist text-sm font-medium py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                Keep going
+              </button>
+              <button
+                onClick={() => navigate(cancelDestination)}
+                className="flex-1 bg-red-500/15 text-red-300 text-sm font-medium py-2.5 rounded-lg hover:bg-red-500/25 transition-colors"
+              >
+                End session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

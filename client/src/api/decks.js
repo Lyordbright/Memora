@@ -27,3 +27,9 @@ export const deleteCard = (deckId, cardId) =>
 
 export const createDeckFromMissed = (topic, questions) =>
   client.post('/decks/from-missed', { topic, questions }).then((r) => r.data.deck);
+
+// Flexible quiz save: pass deckId to append to an existing deck, or
+// title/tags to create a new one. `questions` is whatever set the caller
+// already chose (all questions or just the missed ones).
+export const saveQuizToDeck = ({ questions, deckId, title, tags }) =>
+  client.post('/decks/from-quiz', { questions, deckId, title, tags }).then((r) => r.data.deck);

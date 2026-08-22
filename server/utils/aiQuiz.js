@@ -62,7 +62,8 @@ function validateQuestions(questions, numQuestions) {
 }
 
 async function callGemini(prompt) {
-  const url = GEMINI_URL(process.env.GEMINI_MODEL || 'gemini-2.5-flash', process.env.GEMINI_API_KEY);
+  const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+  const url = GEMINI_URL(model, process.env.GEMINI_API_KEY);
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -72,7 +73,12 @@ async function callGemini(prompt) {
     }),
   });
 
-  if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
+  if (!res.ok) {
+    // Include the model name and response body — a 404 here almost always
+    // means the model name is wrong/retired, and the body usually says so.
+    const body = await res.text().catch(() => '');
+    throw new Error(`Gemini API error: ${res.status} (model: "${model}") — ${body.slice(0, 300)}`);
+  }
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Gemini returned no content');
@@ -80,6 +86,7 @@ async function callGemini(prompt) {
 }
 
 async function callGroq(prompt) {
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
@@ -87,14 +94,17 @@ async function callGroq(prompt) {
       Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+      model,
       temperature: 0.7,
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
     }),
   });
 
-  if (!res.ok) throw new Error(`Groq API error: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Groq API error: ${res.status} (model: "${model}") — ${body.slice(0, 300)}`);
+  }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content;
   if (!text) throw new Error('Groq returned no content');

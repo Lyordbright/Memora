@@ -1,18 +1,20 @@
 import React from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Timer } from 'lucide-react';
 import AppShell from '../components/AppShell.jsx';
 import * as aiApi from '../api/ai.js';
 
 const DIFFICULTIES = ['beginner', 'intermediate', 'advanced'];
 const COUNTS = [5, 10, 15];
+const QUESTION_TIME_LIMIT = 10;
 
 export default function AITeacherSetup() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState('beginner');
   const [count, setCount] = useState(10);
+  const [timed, setTimed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,7 +25,7 @@ export default function AITeacherSetup() {
     setError('');
     try {
       const session = await aiApi.generateQuiz(topic, difficulty, count);
-      navigate('/ai-teacher/quiz', { state: { session } });
+      navigate('/ai-teacher/quiz', { state: { session, timed, timeLimit: QUESTION_TIME_LIMIT } });
     } catch (err) {
       setError(err.response?.data?.error || 'Could not generate a quiz right now. Try again.');
     } finally {
@@ -88,6 +90,35 @@ export default function AITeacherSetup() {
                   {c}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-mist/50 mb-2 block">Pace</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTimed(false)}
+                className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  !timed
+                    ? 'bg-spark/20 text-spark border border-spark/40'
+                    : 'bg-surface border border-white/10 text-mist/50 hover:text-mist'
+                }`}
+              >
+                Untimed
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimed(true)}
+                className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  timed
+                    ? 'bg-spark/20 text-spark border border-spark/40'
+                    : 'bg-surface border border-white/10 text-mist/50 hover:text-mist'
+                }`}
+              >
+                <Timer size={14} />
+                Timed ({QUESTION_TIME_LIMIT}s/question)
+              </button>
             </div>
           </div>
 

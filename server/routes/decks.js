@@ -63,7 +63,7 @@ router.delete('/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/decks/:id/cards/bulk — add many cards in one request (e.g. pasted list)
+// POST /api/decks/:id/cards/bulk — add many cards in one request (e.g. pasted list, or quiz save)
 router.post('/:id/cards/bulk', async (req, res) => {
   const { cards } = req.body; // [{ front, back }]
   if (!Array.isArray(cards) || cards.length === 0) {
@@ -120,9 +120,10 @@ router.delete('/:id/cards/:cardId', async (req, res) => {
   res.json({ deck });
 });
 
-// POST /api/decks/from-missed — build a new deck from a quiz session's missed questions
+// POST /api/decks/from-missed — kept for backward compatibility; builds a new
+// deck from a quiz session's missed questions specifically.
 router.post('/from-missed', async (req, res) => {
-  const { topic, questions } = req.body; // questions: [{ question, options, correctIndex, explanation }]
+  const { topic, questions } = req.body;
   if (!topic || !Array.isArray(questions) || questions.length === 0) {
     return res.status(400).json({ error: 'Topic and at least one missed question are required' });
   }
@@ -136,6 +137,48 @@ router.post('/from-missed', async (req, res) => {
     userId: req.user._id,
     title: `${topic} — Missed`,
     tags: [topic.toLowerCase(), 'ai-generated'],
+    cards,
+    source: 'ai-missed',
+  });
+
+  res.status(201).json({ deck });
+});
+
+// POST /api/decks/from-quiz — flexible save: either create a new deck or
+// append to an existing one, with whatever question set the client chose
+// (all questions or just the missed ones — that decision is made client-side
+// and the resulting array is passed straight through here).
+router.post('/from-quiz', async (req, res) => {
+  const { questions, deckId, title, tags } = req.body;
+
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: 'At least one question is required' });
+  }
+
+  const cards = questions.map((q) => ({
+    front: q.question,
+    back: `${q.options[q.correctIndex]}\n\n${q.explanation}`,
+  }));
+
+  if (deckId) {
+    // Append to an existing deck.
+    const deck = await Deck.findOne({ _id: deckId, userId: req.user._id });
+    if (!deck) return res.status(404).json({ error: 'Deck not found' });
+
+    deck.cards.push(...cards);
+    await deck.save();
+    return res.status(200).json({ deck });
+  }
+
+  // Create a new deck.
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'A title is required when creating a new deck' });
+  }
+
+  const deck = await Deck.create({
+    userId: req.user._id,
+    title: title.trim(),
+    tags: tags || [],
     cards,
     source: 'ai-missed',
   });
